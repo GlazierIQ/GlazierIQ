@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext'
 import {
   LayoutDashboard, ClipboardList, Factory, ScanLine, FileText,
   ShieldCheck, Users, CloudSun, Clock, MessageSquare, FolderKanban,
-  Settings, Truck, ChevronRight, ShieldAlert, TrendingUp, StickyNote
+  Settings, Truck, ChevronRight, ShieldAlert, TrendingUp, StickyNote, LogOut
 } from 'lucide-react'
 
 const NAV = [
@@ -25,7 +25,7 @@ const NAV = [
 ]
 
 export default function Sidebar({ collapsed, setCollapsed }) {
-  const { user, login, users, userCan } = useAuth()
+  const { user, logout, userCan } = useAuth()
   const nav = NAV.filter(n => !n.perm || userCan(n.perm))
 
   return (
@@ -57,19 +57,10 @@ export default function Sidebar({ collapsed, setCollapsed }) {
         ))}
       </nav>
 
-      {/* User switcher (demo) */}
-      {!collapsed && (
+      {/* Signed-in user + sign out */}
+      {!collapsed && user && (
         <div className="p-3 border-t border-slate-700/50">
-          <p className="text-slate-500 text-xs mb-1.5 px-1">Demo: Switch User</p>
-          <select
-            value={user.id}
-            onChange={e => login(Number(e.target.value))}
-            className="w-full bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-white text-xs focus:outline-none focus:border-amber-400">
-            {users.map(u => (
-              <option key={u.id} value={u.id}>{u.name} — {u.role.replace(/_/g, ' ')}</option>
-            ))}
-          </select>
-          <div className="flex items-center gap-2 mt-2 px-1">
+          <div className="flex items-center gap-2 px-1">
             <div className="w-6 h-6 rounded-full bg-amber-400/20 border border-amber-400/30 flex items-center justify-center">
               <span className="text-amber-400 text-xs font-bold">{user.name[0]}</span>
             </div>
@@ -83,6 +74,17 @@ export default function Sidebar({ collapsed, setCollapsed }) {
               </span>
             )}
           </div>
+          <button onClick={logout}
+            className="mt-2 w-full flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-lg px-2 py-1.5 text-slate-300 text-xs transition">
+            <LogOut size={12} /> Sign out
+          </button>
+        </div>
+      )}
+      {collapsed && user && (
+        <div className="p-2 border-t border-slate-700/50 flex justify-center">
+          <button onClick={logout} title="Sign out" className="text-slate-500 hover:text-white p-1.5">
+            <LogOut size={14} />
+          </button>
         </div>
       )}
     </div>

@@ -15,6 +15,8 @@ import SafetyPage from './pages/SafetyPage'
 import EstimatorPage from './pages/EstimatorPage'
 import NotesPage from './pages/NotesPage'
 import AIAgent from './components/AIAgent'
+import LoginPage from './pages/LoginPage'
+import { Loader2 } from 'lucide-react'
 import {
   OrdersPage, MachineQueuePage,
   TimePage, LogisticsPage, CloseoutPage
@@ -68,13 +70,31 @@ function Layout() {
   )
 }
 
+function Gate() {
+  const { user, loading } = useAuth()
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center gap-3">
+        <div className="w-11 h-11 rounded-xl bg-amber-400 flex items-center justify-center">
+          <span className="text-slate-900 font-black text-sm">GIQ</span>
+        </div>
+        <Loader2 size={18} className="text-amber-400 animate-spin" />
+      </div>
+    )
+  }
+  if (!user) return <LoginPage />
+  return (
+    <BrowserRouter>
+      <Layout />
+    </BrowserRouter>
+  )
+}
+
 export default function App() {
   return (
     <AuthProvider>
       <DataProvider>
-        <BrowserRouter>
-          <Layout />
-        </BrowserRouter>
+        <Gate />
       </DataProvider>
     </AuthProvider>
   )

@@ -1,9 +1,11 @@
-import { createContext, useContext, useState, useEffect } from 'react'
-import { ROLES } from './AuthContext'
+/* eslint-disable react-refresh/only-export-components */
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
+import { supabase } from '../supabaseClient'
+import { ROLES, useAuth } from './AuthContext'
 
 const DataContext = createContext(null)
 
-// ---- Seed data ----
+// ---- Static project list (mirrors the projects table seed) ----
 export const PROJECTS = [
   { id: 'creamery', name: 'The Creamery',   job: '25-0628', address: '410 Glenwood Ave, Raleigh NC 27603' },
   { id: 'midtown',  name: 'Midtown Office',  job: '25-0441', address: 'Raleigh, NC' },
@@ -15,52 +17,7 @@ export const PROJECT_LEADS = [
   ROLES.PROJECT_MANAGER, ROLES.GENERAL_SUPER, ROLES.SUPERINTENDENT, ROLES.ASST_SUPER, ROLES.DIRECTOR_OPS,
 ]
 
-const SEED_MESSAGES = [
-  { id: 'm1', projectId: 'creamery', userId: 5, userName: 'Bill Nettles',  role: ROLES.SUPERINTENDENT, text: 'Mora Glass crew on site, 6 men. Starting Level 33 Area A install per Sheet 103.', ts: Date.now() - 1000 * 60 * 240 },
-  { id: 'm2', projectId: 'creamery', userId: 4, userName: 'John Kimbal',   role: ROLES.PROJECT_MANAGER, text: 'Copy. Coping material for Level 37 ships Thursday — confirm lift availability.', ts: Date.now() - 1000 * 60 * 180 },
-  { id: 'm3', projectId: 'creamery', userId: 6, userName: 'Sultan Al Mumin', role: ROLES.ASST_SUPER,    text: 'Lift booked through Friday. Will stage North coping on Level 37 deck.', ts: Date.now() - 1000 * 60 * 90 },
-]
-
-const SEED_QC = [
-  { id: 'QC-2026-041', projectId: 'creamery', system: 'Curtain Wall — Level 33 Area A',  inspector: 'QC Inspector', result: 'pass', items: [], notes: 'Edges clean, coating uniform, dimensions within tolerance.', ts: Date.now() - 1000 * 60 * 60 * 20, resolved: false },
-  { id: 'QC-2026-040', projectId: 'midtown',  system: 'Storefront — Entry A',            inspector: 'QC Inspector', result: 'fail', items: ['Sealant joint — voids at sill', 'Glass — surface scratch top-right'], notes: 'Scratch 3" at top-right. Reorder + re-tool sealant.', ts: Date.now() - 1000 * 60 * 60 * 44, resolved: false },
-]
-
-// Helper: a date N days from now as an ISO yyyy-mm-dd string (keeps demo states stable)
 const DAY = 1000 * 60 * 60 * 24
-const dateIn = (days) => new Date(Date.now() + days * DAY).toISOString().slice(0, 10)
-
-// ---- Certifications (expiry tracking + AI reminder engine) ----
-const SEED_CERTS = [
-  // userId links to AuthContext seed users so reminders route to the person
-  { id: 'C-101', userId: 4, userName: 'John Kimbal',     email: 'john@spscorp.com',   certType: 'OSHA-30',        issuer: 'OSHA',          issued: '2021-08-12', expires: dateIn(83),  renewed: false, lastReminderTs: null, reminderCount: 0 },
-  { id: 'C-102', userId: 5, userName: 'Bill Nettles',    email: 'bill@spscorp.com',   certType: 'OSHA-30',        issuer: 'OSHA',          issued: '2021-06-15', expires: dateIn(21),  renewed: false, lastReminderTs: null, reminderCount: 0 },
-  { id: 'C-103', userId: 5, userName: 'Bill Nettles',    email: 'bill@spscorp.com',   certType: 'Forklift / Telehandler', issuer: 'SPS Internal', issued: '2024-02-01', expires: dateIn(9),   renewed: false, lastReminderTs: null, reminderCount: 0 },
-  { id: 'C-104', userId: 6, userName: 'Sultan Al Mumin', email: 'sultan@spscorp.com', certType: 'OSHA-10',        issuer: 'OSHA',          issued: '2023-01-10', expires: dateIn(140), renewed: false, lastReminderTs: null, reminderCount: 0 },
-  { id: 'C-105', userId: 6, userName: 'Sultan Al Mumin', email: 'sultan@spscorp.com', certType: 'Aerial / Scissor Lift',  issuer: 'IPAF',     issued: '2023-04-22', expires: dateIn(-6),  renewed: false, lastReminderTs: null, reminderCount: 0 },
-  { id: 'C-106', userId: 11, userName: 'Safety Coord',   email: 'safety@spscorp.com', certType: 'First Aid / CPR', issuer: 'Red Cross',     issued: '2024-05-01', expires: dateIn(54),  renewed: false, lastReminderTs: null, reminderCount: 0 },
-  { id: 'C-107', userId: 11, userName: 'Safety Coord',   email: 'safety@spscorp.com', certType: 'OSHA-500 (Trainer)', issuer: 'OSHA',      issued: '2022-09-15', expires: dateIn(28),  renewed: false, lastReminderTs: null, reminderCount: 0 },
-  { id: 'C-108', userId: 7, userName: 'Rhino Op 1',      email: 'op1@spscorp.com',    certType: 'Forklift / Telehandler', issuer: 'SPS Internal', issued: '2024-03-01', expires: dateIn(210), renewed: false, lastReminderTs: null, reminderCount: 0 },
-]
-
-// ---- Estimating / bid board ----
-const SEED_BIDS = [
-  { id: 'B-301', name: 'The Creamery',      job: '25-0628', address: '410 Glenwood Ave, Raleigh NC', client: 'Hoffman & Assoc.', gc: 'Brasfield & Gorrie', value: 2450000, bidDate: '2025-04-18', status: 'awarded', pmId: 4, awardedTs: Date.now() - DAY * 40, estimator: 'Dana Estimator' },
-  { id: 'B-302', name: 'Midtown Office Tower', job: '25-0441', address: 'Raleigh, NC',             client: 'Kane Realty',     gc: 'Clancy & Theys',     value: 3870000, bidDate: '2025-05-02', status: 'awarded', pmId: null, awardedTs: Date.now() - DAY * 12, estimator: 'Dana Estimator' },
-  { id: 'B-303', name: 'Harbor Walk Mixed-Use', job: '25-0712', address: 'Wilmington, NC',         client: 'East West Partners', gc: 'Monteith',        value: 1620000, bidDate: '2025-06-01', status: 'pending', pmId: null, awardedTs: null, estimator: 'Dana Estimator' },
-  { id: 'B-304', name: 'Fort Wayne Medical', job: '25-0733', address: 'Fort Wayne, IN',           client: 'Parkview Health', gc: 'Weigand',            value: 2980000, bidDate: '2025-06-10', status: 'pending', pmId: null, awardedTs: null, estimator: 'Dana Estimator' },
-  { id: 'B-305', name: 'Charlotte Tech Campus B', job: '25-0698', address: 'Charlotte, NC',        client: 'Childress Klein', gc: 'Rodgers',            value: 5240000, bidDate: '2025-05-20', status: 'lost', pmId: null, awardedTs: null, estimator: 'Dana Estimator' },
-]
-
-const NOTI_KEY = 'giq_notifications'
-const MSG_KEY  = 'giq_messages'
-const QC_KEY   = 'giq_qc'
-const WX_KEY   = 'giq_weather_alerts'
-const CERT_KEY = 'giq_certs'
-const BID_KEY  = 'giq_bids'
-const NOTE_KEY = 'giq_notes'
-const OBS_KEY  = 'giq_observations'
-const EMAIL_KEY = 'giq_email_log'
 
 // Days before expiry that the AI reminder engine starts nudging
 export const CERT_WARN_DAYS = 30
@@ -78,69 +35,90 @@ export function certStatus(cert) {
 export const certDaysLeft = (cert) =>
   Math.ceil((new Date(cert.expires + 'T00:00:00').getTime() - Date.now()) / DAY)
 
-function load(key, fallback) {
-  try {
-    const raw = localStorage.getItem(key)
-    if (raw) return JSON.parse(raw)
-  } catch { /* ignore */ }
-  return fallback
-}
+// ---------------------------------------------------------------------------
+// Row mappers: DB snake_case <-> app camelCase (timestamps as ms numbers)
+// ---------------------------------------------------------------------------
+const ms = (t) => (t ? new Date(t).getTime() : null)
+const iso = (t) => (t ? new Date(t).toISOString() : null)
+const newId = () => crypto.randomUUID()
 
-let _seq = 0
-const uid = (p) => `${p}-${Date.now().toString(36)}-${(_seq++).toString(36)}`
+const fromNoti = (r) => ({ id: r.id, title: r.title, body: r.body, projectId: r.project_id, toRoles: r.to_roles || [], toUserIds: r.to_user_ids || [], level: r.level, readBy: r.read_by || [], ts: ms(r.ts) })
+const fromMsg  = (r) => ({ id: r.id, projectId: r.project_id, userId: r.user_id, userName: r.user_name, role: r.role, text: r.text, ts: ms(r.ts) })
+const fromQC   = (r) => ({ id: r.id, projectId: r.project_id, system: r.system, inspector: r.inspector, result: r.result, items: r.items || [], notes: r.notes, resolved: r.resolved, ts: ms(r.ts) })
+const fromWx   = (r) => ({ id: r.id, projectId: r.project_id, site: r.site, level: r.level, wind: r.wind, message: r.message, action: r.action, issuedBy: r.issued_by, ts: ms(r.ts) })
+const fromCert = (r) => ({ id: r.id, userId: r.user_id, userName: r.user_name, email: r.email, certType: r.cert_type, issuer: r.issuer, issued: r.issued, expires: r.expires, renewed: r.renewed, lastReminderTs: ms(r.last_reminder_ts), reminderCount: r.reminder_count })
+const fromBid  = (r) => ({ id: r.id, name: r.name, job: r.job, address: r.address, client: r.client, gc: r.gc, value: r.value == null ? null : Number(r.value), bidDate: r.bid_date, status: r.status, pmId: r.pm_id, pmName: r.pm_name, awardedTs: ms(r.awarded_ts), estimator: r.estimator })
+const fromNote = (r) => ({ id: r.id, authorId: r.author_id, authorName: r.author_name, title: r.title, body: r.body, tags: r.tags || [], source: r.source, projectId: r.project_id, ts: ms(r.ts) })
+const fromObs  = (r) => ({ id: r.id, drawingId: r.drawing_id, drawingName: r.drawing_name, authorId: r.author_id, authorName: r.author_name, location: r.location, note: r.note, taggedUserIds: r.tagged_user_ids || [], taggedNames: r.tagged_names || [], resolved: r.resolved, ts: ms(r.ts) })
+const fromMail = (r) => ({ id: r.id, kind: r.kind, to: r.to_addr, subject: r.subject, body: r.body, ts: ms(r.ts) })
+
+const logDbError = (label) => ({ error }) => { if (error) console.error(`${label}:`, error.message) }
 
 export function DataProvider({ children }) {
-  const [notifications, setNotifications] = useState(() => load(NOTI_KEY, []))
-  const [messages, setMessages]           = useState(() => load(MSG_KEY, SEED_MESSAGES))
-  const [qcLogs, setQcLogs]               = useState(() => load(QC_KEY, SEED_QC))
-  const [weatherAlerts, setWeatherAlerts] = useState(() => load(WX_KEY, []))
-  const [certs, setCerts]                 = useState(() => load(CERT_KEY, SEED_CERTS))
-  const [bids, setBids]                   = useState(() => load(BID_KEY, SEED_BIDS))
-  const [notes, setNotes]                 = useState(() => load(NOTE_KEY, []))
-  const [observations, setObservations]   = useState(() => load(OBS_KEY, []))
-  const [emailLog, setEmailLog]           = useState(() => load(EMAIL_KEY, []))
+  const { user } = useAuth()
 
-  useEffect(() => { localStorage.setItem(NOTI_KEY, JSON.stringify(notifications)) }, [notifications])
-  useEffect(() => { localStorage.setItem(MSG_KEY,  JSON.stringify(messages)) }, [messages])
-  useEffect(() => { localStorage.setItem(QC_KEY,   JSON.stringify(qcLogs)) }, [qcLogs])
-  useEffect(() => { localStorage.setItem(WX_KEY,   JSON.stringify(weatherAlerts)) }, [weatherAlerts])
-  useEffect(() => { localStorage.setItem(CERT_KEY, JSON.stringify(certs)) }, [certs])
-  useEffect(() => { localStorage.setItem(BID_KEY,  JSON.stringify(bids)) }, [bids])
-  useEffect(() => { localStorage.setItem(NOTE_KEY, JSON.stringify(notes)) }, [notes])
-  useEffect(() => { localStorage.setItem(OBS_KEY,  JSON.stringify(observations)) }, [observations])
-  useEffect(() => { localStorage.setItem(EMAIL_KEY, JSON.stringify(emailLog)) }, [emailLog])
+  const [notifications, setNotifications] = useState([])
+  const [messages, setMessages]           = useState([])
+  const [qcLogs, setQcLogs]               = useState([])
+  const [weatherAlerts, setWeatherAlerts] = useState([])
+  const [certs, setCerts]                 = useState([])
+  const [bids, setBids]                   = useState([])
+  const [notes, setNotes]                 = useState([])
+  const [observations, setObservations]   = useState([])
+  const [emailLog, setEmailLog]           = useState([])
+  const [dataReady, setDataReady]         = useState(false)
 
   // ---- Notifications ----
-  // toRoles: array of role keys, toUserIds: array of user ids, level: info|warning|critical
   const addNotification = ({ title, body, projectId = null, toRoles = [], toUserIds = [], level = 'info' }) => {
-    const n = { id: uid('n'), title, body, projectId, toRoles, toUserIds, level, ts: Date.now(), readBy: [] }
+    const n = { id: newId(), title, body, projectId, toRoles, toUserIds, level, ts: Date.now(), readBy: [] }
     setNotifications(list => [n, ...list])
+    supabase.from('notifications').insert({
+      id: n.id, title, body, project_id: projectId, to_roles: toRoles,
+      to_user_ids: toUserIds, level, ts: iso(n.ts),
+    }).then(logDbError('addNotification'))
     return n
   }
 
-  const notificationsFor = (user) => {
-    if (!user) return []
+  const notificationsFor = (u) => {
+    if (!u) return []
     return notifications.filter(n =>
-      user.adminGrant ||
-      n.toUserIds.includes(user.id) ||
-      n.toRoles.includes(user.role) ||
+      u.adminGrant ||
+      n.toUserIds.includes(u.id) ||
+      n.toRoles.includes(u.role) ||
       n.toRoles.includes('all')
     )
   }
 
-  const markRead = (id, userId) =>
-    setNotifications(list => list.map(n =>
-      n.id === id && !n.readBy.includes(userId) ? { ...n, readBy: [...n.readBy, userId] } : n))
+  const markRead = (id, userId) => {
+    let updated
+    setNotifications(list => list.map(n => {
+      if (n.id === id && !n.readBy.includes(userId)) { updated = { ...n, readBy: [...n.readBy, userId] }; return updated }
+      return n
+    }))
+    if (updated) supabase.from('notifications').update({ read_by: updated.readBy }).eq('id', id).then(logDbError('markRead'))
+  }
 
-  const markAllRead = (userId) =>
-    setNotifications(list => list.map(n =>
-      n.readBy.includes(userId) ? n : { ...n, readBy: [...n.readBy, userId] }))
+  const markAllRead = (userId) => {
+    const changed = []
+    setNotifications(list => list.map(n => {
+      if (n.readBy.includes(userId)) return n
+      const upd = { ...n, readBy: [...n.readBy, userId] }
+      changed.push(upd)
+      return upd
+    }))
+    changed.forEach(n =>
+      supabase.from('notifications').update({ read_by: n.readBy }).eq('id', n.id).then(logDbError('markAllRead')))
+  }
 
   // ---- Per-project messaging ----
-  const sendMessage = ({ projectId, user, text }) => {
+  const sendMessage = ({ projectId, user: u, text }) => {
     if (!text.trim()) return
-    const msg = { id: uid('m'), projectId, userId: user.id, userName: user.name, role: user.role, text: text.trim(), ts: Date.now() }
+    const msg = { id: newId(), projectId, userId: u.id, userName: u.name, role: u.role, text: text.trim(), ts: Date.now() }
     setMessages(list => [...list, msg])
+    supabase.from('messages').insert({
+      id: msg.id, project_id: projectId, user_id: u.id, user_name: u.name,
+      role: u.role, text: msg.text, ts: iso(msg.ts),
+    }).then(logDbError('sendMessage'))
     return msg
   }
   const messagesFor = (projectId) =>
@@ -152,6 +130,9 @@ export function DataProvider({ children }) {
     const id = `QC-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 900) + 100)}`
     const log = { id, projectId, system, inspector, result, items, notes, ts: Date.now(), resolved: false }
     setQcLogs(list => [log, ...list])
+    supabase.from('qc_logs').insert({
+      id, project_id: projectId, system, inspector, result, items, notes, ts: iso(log.ts),
+    }).then(logDbError('addQCLog'))
     if (result === 'fail') {
       addNotification({
         title: `QC FAILED — ${system}`,
@@ -169,6 +150,7 @@ export function DataProvider({ children }) {
       return l
     }))
     if (resolved) {
+      supabase.from('qc_logs').update({ resolved: true }).eq('id', id).then(logDbError('resolveQCLog'))
       const project = PROJECTS.find(p => p.id === resolved.projectId)
       addNotification({
         title: `QC RESOLVED — ${resolved.system}`,
@@ -181,8 +163,12 @@ export function DataProvider({ children }) {
   // ---- Weather / storm alerts ----
   const issueWeatherAlert = ({ projectId, site, level, wind, message, action, issuedBy }) => {
     const project = PROJECTS.find(p => p.id === projectId)
-    const alert = { id: uid('wx'), projectId, site, level, wind, message, action, issuedBy: issuedBy?.name || 'System', ts: Date.now() }
+    const alert = { id: newId(), projectId, site, level, wind, message, action, issuedBy: issuedBy?.name || 'System', ts: Date.now() }
     setWeatherAlerts(list => [alert, ...list])
+    supabase.from('weather_alerts').insert({
+      id: alert.id, project_id: projectId, site, level, wind, message, action,
+      issued_by: alert.issuedBy, ts: iso(alert.ts),
+    }).then(logDbError('issueWeatherAlert'))
     addNotification({
       title: level === 'stop' ? `STORM ALERT — STOP WORK · ${site}` : `WEATHER WATCH — ${site}`,
       body: `${message}${action ? ` Action: ${action}.` : ''} (${project?.name || projectId})`,
@@ -193,45 +179,62 @@ export function DataProvider({ children }) {
   }
 
   // ---- Certifications + AI reminder engine ----
-  const logEmail = (entry) =>
-    setEmailLog(list => [{ id: uid('email'), ts: Date.now(), ...entry }, ...list].slice(0, 200))
+  const logEmail = (entry) => {
+    const e = { id: newId(), ts: Date.now(), ...entry }
+    setEmailLog(list => [e, ...list].slice(0, 200))
+    supabase.from('email_log').insert({
+      id: e.id, kind: e.kind, to_addr: e.to, subject: e.subject, body: e.body, ts: iso(e.ts),
+    }).then(logDbError('logEmail'))
+  }
 
   const addCert = ({ userId, userName, email, certType, issuer, issued, expires }) => {
-    const cert = { id: uid('C'), userId, userName, email, certType, issuer, issued, expires, renewed: false, lastReminderTs: null, reminderCount: 0 }
+    const cert = { id: newId(), userId, userName, email, certType, issuer, issued, expires, renewed: false, lastReminderTs: null, reminderCount: 0 }
     setCerts(list => [cert, ...list])
+    supabase.from('certs').insert({
+      id: cert.id, user_id: userId || null, user_name: userName, email,
+      cert_type: certType, issuer, issued: issued || null, expires,
+    }).then(logDbError('addCert'))
     return cert
   }
-  const removeCert = (id) => setCerts(list => list.filter(c => c.id !== id))
+  const removeCert = (id) => {
+    setCerts(list => list.filter(c => c.id !== id))
+    supabase.from('certs').delete().eq('id', id).then(logDbError('removeCert'))
+  }
 
   const markCertRenewed = (id, newExpires, by) => {
     let renewed
+    const todayStr = new Date().toISOString().slice(0, 10)
     setCerts(list => list.map(c => {
       if (c.id !== id) return c
       renewed = c
-      return { ...c, renewed: false, expires: newExpires || c.expires, issued: new Date().toISOString().slice(0, 10), lastReminderTs: null, reminderCount: 0 }
+      return { ...c, renewed: false, expires: newExpires || c.expires, issued: todayStr, lastReminderTs: null, reminderCount: 0 }
     }))
     if (renewed) {
+      supabase.from('certs').update({
+        renewed: false, expires: newExpires || renewed.expires, issued: todayStr,
+        last_reminder_ts: null, reminder_count: 0,
+      }).eq('id', id).then(logDbError('markCertRenewed'))
       addNotification({
         title: `Certification renewed — ${renewed.certType}`,
         body: `${renewed.userName}'s ${renewed.certType} is updated through ${newExpires || renewed.expires}${by ? `, confirmed by ${by}` : ''}. Reminders cleared.`,
-        toUserIds: [renewed.userId], toRoles: [ROLES.SAFETY_COORD], level: 'info',
+        toUserIds: renewed.userId ? [renewed.userId] : [], toRoles: [ROLES.SAFETY_COORD], level: 'info',
       })
       logEmail({ kind: 'cert_renewed', to: renewed.email, subject: `Confirmed: ${renewed.certType} renewal recorded`,
         body: `Hi ${renewed.userName}, your ${renewed.certType} has been updated in GlazierIQ${newExpires ? ` and now expires ${newExpires}` : ''}. No further reminders will be sent. — GlazierIQ Safety` })
     }
   }
 
-  // The engine: scans certs and fires due reminders. Returns how many it sent.
-  // Runs automatically on load and can be triggered manually ("Run reminder check").
-  const runCertReminderCheck = () => {
+  // The engine: scans a cert list and fires due reminders. Returns how many it sent.
+  const runReminderScan = useCallback((certList) => {
     let sent = 0
-    setCerts(list => list.map(c => {
+    const now = Date.now()
+    const updated = certList.map(c => {
       if (c.renewed) return c
-      const daysLeft = Math.ceil((new Date(c.expires + 'T00:00:00').getTime() - Date.now()) / DAY)
+      const daysLeft = Math.ceil((new Date(c.expires + 'T00:00:00').getTime() - now) / DAY)
       const inWindow = daysLeft <= CERT_WARN_DAYS // expiring soon or already expired
       if (!inWindow) return c
 
-      const since = c.lastReminderTs ? (Date.now() - c.lastReminderTs) / DAY : Infinity
+      const since = c.lastReminderTs ? (now - c.lastReminderTs) / DAY : Infinity
       const firstNotice = c.reminderCount === 0
       const dueForWeekly = since >= REMINDER_CADENCE_DAYS
       if (!firstNotice && !dueForWeekly) return c
@@ -243,7 +246,7 @@ export function DataProvider({ children }) {
           ? `Certification expiring — ${c.certType}`
           : `Reminder (#${c.reminderCount + 1}) — renew ${c.certType}`,
         body: `${c.userName}: ${c.certType} ${when}. Please renew and confirm in GlazierIQ. Weekly reminders continue until updated.`,
-        toUserIds: [c.userId],
+        toUserIds: c.userId ? [c.userId] : [],
         toRoles: [ROLES.SAFETY_COORD],
         level: expired ? 'critical' : 'warning',
       })
@@ -254,24 +257,43 @@ export function DataProvider({ children }) {
         body: `Hi ${c.userName}, your ${c.certType} ${when}. Please schedule your renewal and confirm completion in GlazierIQ so reminders stop. — GlazierIQ Safety (auto-sent)`,
       })
       sent++
-      return { ...c, lastReminderTs: Date.now(), reminderCount: c.reminderCount + 1 }
-    }))
+      const upd = { ...c, lastReminderTs: now, reminderCount: c.reminderCount + 1 }
+      supabase.from('certs').update({
+        last_reminder_ts: iso(now), reminder_count: upd.reminderCount,
+      }).eq('id', c.id).then(logDbError('reminderUpdate'))
+      return upd
+    })
+    setCerts(updated)
     return sent
-  }
+  }, [])
+
+  const runCertReminderCheck = () => runReminderScan(certs)
 
   // ---- Notes (dictation / agent / manual) ----
   const addNote = ({ authorId, authorName, title, body, tags = [], source = 'manual', projectId = null }) => {
-    const note = { id: uid('note'), authorId, authorName, title: title || 'Untitled note', body, tags, source, projectId, ts: Date.now() }
+    const note = { id: newId(), authorId, authorName, title: title || 'Untitled note', body, tags, source, projectId, ts: Date.now() }
     setNotes(list => [note, ...list])
+    supabase.from('notes').insert({
+      id: note.id, author_id: authorId || null, author_name: authorName, title: note.title,
+      body, tags, source, project_id: projectId, ts: iso(note.ts),
+    }).then(logDbError('addNote'))
     return note
   }
-  const deleteNote = (id) => setNotes(list => list.filter(n => n.id !== id))
+  const deleteNote = (id) => {
+    setNotes(list => list.filter(n => n.id !== id))
+    supabase.from('notes').delete().eq('id', id).then(logDbError('deleteNote'))
+  }
   const notesFor = (userId) => notes.filter(n => n.authorId === userId).sort((a, b) => b.ts - a.ts)
 
   // ---- Estimating / bid board ----
   const addBid = (bid) => {
-    const b = { id: uid('B'), status: 'pending', pmId: null, awardedTs: null, ...bid }
+    const b = { id: `B-${Date.now().toString(36)}`, status: 'pending', pmId: null, awardedTs: null, ...bid }
     setBids(list => [b, ...list])
+    supabase.from('bids').insert({
+      id: b.id, name: b.name, job: b.job, address: b.address, client: b.client, gc: b.gc,
+      value: b.value ?? null, bid_date: b.bidDate || null, status: b.status,
+      pm_id: b.pmId, pm_name: b.pmName || null, awarded_ts: iso(b.awardedTs), estimator: b.estimator,
+    }).then(logDbError('addBid'))
     return b
   }
 
@@ -282,6 +304,9 @@ export function DataProvider({ children }) {
       target = { ...b, status, awardedTs: status === 'awarded' ? Date.now() : b.awardedTs }
       return target
     }))
+    if (target) {
+      supabase.from('bids').update({ status, awarded_ts: iso(target.awardedTs) }).eq('id', id).then(logDbError('setBidStatus'))
+    }
     if (target && status === 'awarded') {
       const pm = target.pmId
       addNotification({
@@ -302,6 +327,9 @@ export function DataProvider({ children }) {
       target = { ...b, pmId, pmName: pmName || b.pmName }
       return target
     }))
+    if (target) {
+      supabase.from('bids').update({ pm_id: pmId, pm_name: target.pmName || null }).eq('id', id).then(logDbError('assignBidPM'))
+    }
     if (target && pmId) {
       addNotification({
         title: `You've been assigned — ${target.name}`,
@@ -314,8 +342,13 @@ export function DataProvider({ children }) {
 
   // ---- Blueprint observations (tag someone to review) ----
   const addObservation = ({ drawingId, drawingName, author, location, note, taggedUserIds = [], taggedNames = [] }) => {
-    const obs = { id: uid('obs'), drawingId, drawingName, authorId: author?.id, authorName: author?.name, location, note, taggedUserIds, taggedNames, resolved: false, ts: Date.now() }
+    const obs = { id: newId(), drawingId, drawingName, authorId: author?.id, authorName: author?.name, location, note, taggedUserIds, taggedNames, resolved: false, ts: Date.now() }
     setObservations(list => [obs, ...list])
+    supabase.from('observations').insert({
+      id: obs.id, drawing_id: drawingId, drawing_name: drawingName, author_id: author?.id || null,
+      author_name: author?.name, location, note, tagged_user_ids: taggedUserIds,
+      tagged_names: taggedNames, ts: iso(obs.ts),
+    }).then(logDbError('addObservation'))
     if (taggedUserIds.length) {
       addNotification({
         title: `Blueprint flagged for you — ${drawingName}`,
@@ -325,16 +358,54 @@ export function DataProvider({ children }) {
     }
     return obs
   }
-  const resolveObservation = (id) => setObservations(list => list.map(o => o.id === id ? { ...o, resolved: true } : o))
+  const resolveObservation = (id) => {
+    setObservations(list => list.map(o => o.id === id ? { ...o, resolved: true } : o))
+    supabase.from('observations').update({ resolved: true }).eq('id', id).then(logDbError('resolveObservation'))
+  }
   const observationsFor = (drawingId) => observations.filter(o => o.drawingId === drawingId).sort((a, b) => b.ts - a.ts)
 
-  // Fire the reminder engine once after first paint
-  // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/set-state-in-effect
-  useEffect(() => { runCertReminderCheck() }, [])
+  // ---- Load everything from the cloud once the user is signed in ----
+  const scannedOnce = useRef(false)
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (!user) { setDataReady(false); scannedOnce.current = false; return }
+    let cancelled = false
+    async function loadAll() {
+      const [noti, msg, qc, wx, ct, bd, nt, obs, ml] = await Promise.all([
+        supabase.from('notifications').select('*').order('ts', { ascending: false }).limit(300),
+        supabase.from('messages').select('*').order('ts'),
+        supabase.from('qc_logs').select('*').order('ts', { ascending: false }),
+        supabase.from('weather_alerts').select('*').order('ts', { ascending: false }),
+        supabase.from('certs').select('*'),
+        supabase.from('bids').select('*'),
+        supabase.from('notes').select('*').order('ts', { ascending: false }),
+        supabase.from('observations').select('*').order('ts', { ascending: false }),
+        supabase.from('email_log').select('*').order('ts', { ascending: false }).limit(200),
+      ])
+      if (cancelled) return
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setNotifications((noti.data || []).map(fromNoti))
+      setMessages((msg.data || []).map(fromMsg))
+      setQcLogs((qc.data || []).map(fromQC))
+      setWeatherAlerts((wx.data || []).map(fromWx))
+      setBids((bd.data || []).map(fromBid))
+      setNotes((nt.data || []).map(fromNote))
+      setObservations((obs.data || []).map(fromObs))
+      setEmailLog((ml.data || []).map(fromMail))
+      const certList = (ct.data || []).map(fromCert)
+      setCerts(certList)
+      setDataReady(true)
+      // Fire the reminder engine once per session, after data lands
+      if (!scannedOnce.current) { scannedOnce.current = true; runReminderScan(certList) }
+    }
+    loadAll()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id])
 
   return (
     <DataContext.Provider value={{
-      projects: PROJECTS,
+      projects: PROJECTS, dataReady,
       notifications, addNotification, notificationsFor, markRead, markAllRead,
       messages, sendMessage, messagesFor,
       qcLogs, addQCLog, resolveQCLog,

@@ -1,4 +1,6 @@
-import { createContext, useContext, useState, useEffect } from 'react'
+/* eslint-disable react-refresh/only-export-components */
+import { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import { supabase } from '../supabaseClient'
 
 const AuthContext = createContext(null)
 
@@ -30,23 +32,6 @@ export const ROLE_LABELS = Object.fromEntries(
   Object.values(ROLES).map(r => [r, r.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())])
 )
 
-// Seed users — first run only; afterwards loaded from localStorage
-const SEED_USERS = [
-  { id: 1,  name: 'Rich Rivera',     role: ROLES.RECRUITER,       email: 'rich@spscorp.com',   machineNum: null, adminGrant: false },
-  { id: 2,  name: 'Brian Hogan',     role: ROLES.DIRECTOR_OPS,    email: 'brian@spscorp.com',  machineNum: null, adminGrant: true  },
-  { id: 3,  name: 'Pepe Perales',    role: ROLES.GENERAL_SUPER,   email: 'pepe@spscorp.com',   machineNum: null, adminGrant: false },
-  { id: 4,  name: 'John Kimbal',     role: ROLES.PROJECT_MANAGER, email: 'john@spscorp.com',   machineNum: null, adminGrant: false },
-  { id: 5,  name: 'Bill Nettles',    role: ROLES.SUPERINTENDENT,  email: 'bill@spscorp.com',   machineNum: null, adminGrant: false },
-  { id: 6,  name: 'Sultan Al Mumin', role: ROLES.ASST_SUPER,      email: 'sultan@spscorp.com', machineNum: null, adminGrant: false },
-  { id: 7,  name: 'Rhino Op 1',      role: ROLES.SHOP_OPERATOR,   email: 'op1@spscorp.com',    machineNum: 1,    adminGrant: false },
-  { id: 8,  name: 'Rhino Op 2',      role: ROLES.SHOP_OPERATOR,   email: 'op2@spscorp.com',    machineNum: 2,    adminGrant: false },
-  { id: 9,  name: 'Rhino Op 3',      role: ROLES.SHOP_OPERATOR,   email: 'op3@spscorp.com',    machineNum: 3,    adminGrant: false },
-  { id: 10, name: 'QC Inspector',    role: ROLES.QC_INSPECTOR,    email: 'qc@spscorp.com',     machineNum: null, adminGrant: false },
-  { id: 11, name: 'Safety Coord',    role: ROLES.SAFETY_COORD,    email: 'safety@spscorp.com', machineNum: null, adminGrant: false },
-  { id: 12, name: 'Fab Manager',     role: ROLES.FAB_MANAGER,     email: 'fab@spscorp.com',    machineNum: null, adminGrant: false },
-  { id: 13, name: 'Dana Estimator',  role: ROLES.ESTIMATOR,       email: 'est@spscorp.com',    machineNum: null, adminGrant: false },
-]
-
 // Permission map (role-based). A user with adminGrant === true bypasses this entirely.
 const PERMISSIONS = {
   admin_access:        [ROLES.ADMIN, ROLES.DIRECTOR_OPS],
@@ -62,50 +47,82 @@ const PERMISSIONS = {
   view_qc:             Object.values(ROLES),
   manage_qc:           [ROLES.QC_INSPECTOR, ROLES.SUPERINTENDENT, ROLES.ASST_SUPER, ROLES.ADMIN, ROLES.DIRECTOR_OPS, ROLES.GENERAL_SUPER],
   view_drawings:       Object.values(ROLES).filter(r => r !== ROLES.SPD),
-  // Internal per-project messaging — open to the field + project leadership
   project_messages:    Object.values(ROLES).filter(r => r !== ROLES.SPD),
   issue_weather_alert: [ROLES.SUPERINTENDENT, ROLES.ASST_SUPER, ROLES.GENERAL_SUPER, ROLES.DIRECTOR_OPS, ROLES.SAFETY_COORD, ROLES.ADMIN],
-  // Certifications — viewing is broad; managing/renewing limited to safety + leadership
   view_certs:          Object.values(ROLES).filter(r => r !== ROLES.SPD),
   manage_certs:        [ROLES.SAFETY_COORD, ROLES.ADMIN, ROLES.DIRECTOR_OPS, ROLES.GENERAL_SUPER, ROLES.RECRUITER],
-  // Estimating board — everyone can watch the bid board light up
   view_estimating:     Object.values(ROLES).filter(r => r !== ROLES.SPD),
-  // Awarding / assigning a PM to a project — estimator + leadership
   manage_estimating:   [ROLES.ESTIMATOR, ROLES.ADMIN, ROLES.DIRECTOR_OPS, ROLES.GENERAL_SUPER],
-  // The live AI agent + personal notes — available to the whole company
   use_ai_agent:        Object.values(ROLES),
   manage_notes:        Object.values(ROLES),
 }
 
-const USERS_KEY = 'giq_users'
-const CURRENT_KEY = 'giq_current_user'
-
-function loadUsers() {
-  try {
-    const raw = localStorage.getItem(USERS_KEY)
-    if (raw) {
-      const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed) && parsed.length) return parsed
-    }
-  } catch { /* ignore */ }
-  return SEED_USERS
-}
+// DB row (snake_case) -> app shape (camelCase)
+const mapProfile = (p) => p && ({
+  id: p.id, authId: p.auth_id, name: p.name, email: p.email,
+  role: p.role, machineNum: p.machine_num, adminGrant: p.admin_grant,
+})
 
 export function AuthProvider({ children }) {
-  const [users, setUsers] = useState(loadUsers)
-  const [currentUserId, setCurrentUserId] = useState(() => {
-    const saved = Number(localStorage.getItem(CURRENT_KEY))
-    return saved || 1 // Default: Rich Rivera
-  })
+  const [session, setSession]   = useState(null)
+  const [user, setUser]         = useState(null)   // the signed-in person's profile
+  const [users, setUsers]       = useState([])     // full crew roster
+  const [loading, setLoading]   = useState(true)   // true until we know if a session exists
+  const [authError, setAuthError] = useState(null)
 
-  // Persist
-  useEffect(() => { localStorage.setItem(USERS_KEY, JSON.stringify(users)) }, [users])
-  useEffect(() => { localStorage.setItem(CURRENT_KEY, String(currentUserId)) }, [currentUserId])
+  const loadRoster = useCallback(async () => {
+    const { data, error } = await supabase.from('profiles').select('*').order('created_at')
+    if (!error && data) setUsers(data.map(mapProfile))
+  }, [])
 
-  const user = users.find(u => u.id === currentUserId) || users[0]
+  const loadMyProfile = useCallback(async (sess) => {
+    if (!sess?.user) { setUser(null); return }
+    // Profile is linked to the login by the signup trigger; look it up.
+    let { data } = await supabase.from('profiles').select('*').eq('auth_id', sess.user.id).maybeSingle()
+    if (!data) {
+      // Trigger may not have run yet on a brand-new signup — brief retry by email.
+      const byEmail = await supabase.from('profiles').select('*').ilike('email', sess.user.email).maybeSingle()
+      data = byEmail.data
+    }
+    setUser(mapProfile(data))
+  }, [])
 
-  const login = (userId) => setCurrentUserId(Number(userId))
+  // Watch the session: fires on load, sign-in, sign-out, token refresh
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session)
+      Promise.all([loadMyProfile(session), session ? loadRoster() : Promise.resolve()])
+        .finally(() => setLoading(false))
+    })
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session)
+      if (session) { loadMyProfile(session); loadRoster() }
+      else setUser(null)
+    })
+    return () => subscription.unsubscribe()
+  }, [loadMyProfile, loadRoster])
 
+  // ---- Auth actions ----
+  const login = async (email, password) => {
+    setAuthError(null)
+    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
+    if (error) { setAuthError(error.message); return false }
+    return true
+  }
+
+  const signUp = async (name, email, password) => {
+    setAuthError(null)
+    const { error } = await supabase.auth.signUp({
+      email: email.trim(), password,
+      options: { data: { name: name.trim() } },
+    })
+    if (error) { setAuthError(error.message); return false }
+    return true
+  }
+
+  const logout = () => supabase.auth.signOut()
+
+  // ---- Permissions ----
   const userCan = (permission) => {
     if (!user) return false
     if (user.adminGrant) return true            // full-site admin override
@@ -114,30 +131,48 @@ export function AuthProvider({ children }) {
     return allowed.includes(user.role)
   }
 
-  // --- User management (Admin) ---
-  const grantAdmin  = (id) => setUsers(us => us.map(u => u.id === id ? { ...u, adminGrant: true }  : u))
-  const revokeAdmin = (id) => setUsers(us => us.map(u => u.id === id ? { ...u, adminGrant: false } : u))
-
-  const addUser = ({ name, role, email }) => {
-    const id = Math.max(0, ...users.map(u => u.id)) + 1
-    setUsers(us => [...us, { id, name, role, email, machineNum: null, adminGrant: false }])
-    return id
+  // ---- User management (Admin) — writes to the profiles table ----
+  const grantAdmin = async (id) => {
+    setUsers(us => us.map(u => u.id === id ? { ...u, adminGrant: true } : u))
+    await supabase.from('profiles').update({ admin_grant: true }).eq('id', id)
+  }
+  const revokeAdmin = async (id) => {
+    setUsers(us => us.map(u => u.id === id ? { ...u, adminGrant: false } : u))
+    await supabase.from('profiles').update({ admin_grant: false }).eq('id', id)
   }
 
-  const updateUser = (id, patch) =>
+  const addUser = async ({ name, role, email }) => {
+    const { data, error } = await supabase.from('profiles')
+      .insert({ name, role, email })
+      .select().single()
+    if (error) { console.error('addUser:', error.message); return null }
+    const p = mapProfile(data)
+    setUsers(us => [...us, p])
+    return p.id
+  }
+
+  const updateUser = async (id, patch) => {
     setUsers(us => us.map(u => u.id === id ? { ...u, ...patch } : u))
-
-  const removeUser = (id) => {
-    if (id === currentUserId) return // never delete the active session user
-    setUsers(us => us.filter(u => u.id !== id))
+    const dbPatch = {}
+    if ('name' in patch)       dbPatch.name = patch.name
+    if ('email' in patch)      dbPatch.email = patch.email
+    if ('role' in patch)       dbPatch.role = patch.role
+    if ('machineNum' in patch) dbPatch.machine_num = patch.machineNum
+    if ('adminGrant' in patch) dbPatch.admin_grant = patch.adminGrant
+    if (Object.keys(dbPatch).length) await supabase.from('profiles').update(dbPatch).eq('id', id)
   }
 
-  const resetUsers = () => { setUsers(SEED_USERS); setCurrentUserId(1) }
+  const removeUser = async (id) => {
+    if (user && id === user.id) return // never delete the active session user
+    setUsers(us => us.filter(u => u.id !== id))
+    await supabase.from('profiles').delete().eq('id', id)
+  }
 
   return (
     <AuthContext.Provider value={{
-      user, users, login, userCan,
-      grantAdmin, revokeAdmin, addUser, updateUser, removeUser, resetUsers,
+      user, users, session, loading, authError,
+      login, signUp, logout, userCan,
+      grantAdmin, revokeAdmin, addUser, updateUser, removeUser,
       // legacy alias so older components keep working
       DEMO_USERS: users,
     }}>
