@@ -14,7 +14,7 @@ const DIRECT_ENDPOINT = 'https://api.anthropic.com/v1/messages'
 const PROXY_ENDPOINT  = import.meta.env.VITE_AI_PROXY_URL || null
 const ENDPOINT        = PROXY_ENDPOINT || DIRECT_ENDPOINT
 
-export const AI_MODEL = 'claude-sonnet-4-20250514'
+export const AI_MODEL = 'claude-sonnet-4-6'
 
 /**
  * Low-level call. Returns the raw text of the model's reply.
