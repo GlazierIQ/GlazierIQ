@@ -29,17 +29,13 @@ export default function LoginPage() {
   const onKey = (e) => { if (e.key === 'Enter') submit() }
 
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center px-4">
+    <div className="min-h-screen bg-graphite flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         {/* Logo */}
-        <div className="flex items-center justify-center gap-3 mb-8">
-          <div className="w-11 h-11 rounded-xl bg-amber-400 flex items-center justify-center">
-            <span className="text-slate-900 font-black text-sm">GIQ</span>
-          </div>
-          <div>
-            <p className="text-white font-bold text-lg tracking-wide leading-tight">GlazierIQ</p>
-            <p className="text-slate-500 text-xs">Field Operations Platform</p>
-          </div>
+        <div className="flex flex-col items-center mb-8">
+          <img src="/logos/glazieriq-full.png" alt="GlazierIQ"
+            className="w-64 max-w-full h-auto select-none" draggable="false" />
+          <p className="text-slate-500 text-xs mt-2 tracking-wide">Field Operations Platform</p>
         </div>
 
         <div className="bg-slate-900 border border-slate-700/50 rounded-2xl p-6 space-y-4">
@@ -50,7 +46,7 @@ export default function LoginPage() {
           {mode === 'signup' && (
             <label className="block">
               <span className="text-slate-400 text-xs">Full name</span>
-              <div className="mt-1 flex items-center gap-2 bg-slate-800 border border-slate-600 rounded-lg px-3 focus-within:border-amber-400">
+              <div className="mt-1 flex items-center gap-2 bg-slate-800 border border-slate-600 rounded-lg px-3 focus-within:border-brand">
                 <User size={14} className="text-slate-500 flex-shrink-0" />
                 <input value={name} onChange={e => setName(e.target.value)} onKeyDown={onKey}
                   placeholder="Bill Nettles" autoComplete="name"
@@ -61,7 +57,7 @@ export default function LoginPage() {
 
           <label className="block">
             <span className="text-slate-400 text-xs">Email</span>
-            <div className="mt-1 flex items-center gap-2 bg-slate-800 border border-slate-600 rounded-lg px-3 focus-within:border-amber-400">
+            <div className="mt-1 flex items-center gap-2 bg-slate-800 border border-slate-600 rounded-lg px-3 focus-within:border-brand">
               <Mail size={14} className="text-slate-500 flex-shrink-0" />
               <input value={email} onChange={e => setEmail(e.target.value)} onKeyDown={onKey}
                 placeholder="you@spscorp.com" type="email" autoComplete="email"
@@ -71,7 +67,7 @@ export default function LoginPage() {
 
           <label className="block">
             <span className="text-slate-400 text-xs">Password</span>
-            <div className="mt-1 flex items-center gap-2 bg-slate-800 border border-slate-600 rounded-lg px-3 focus-within:border-amber-400">
+            <div className="mt-1 flex items-center gap-2 bg-slate-800 border border-slate-600 rounded-lg px-3 focus-within:border-brand">
               <Lock size={14} className="text-slate-500 flex-shrink-0" />
               <input value={password} onChange={e => setPassword(e.target.value)} onKeyDown={onKey}
                 placeholder="••••••••" type="password"
@@ -81,11 +77,11 @@ export default function LoginPage() {
           </label>
 
           {(notice || authError) && (
-            <p className="text-amber-400 text-xs leading-relaxed">{notice || authError}</p>
+            <p className="text-brand text-xs leading-relaxed">{notice || authError}</p>
           )}
 
           <button onClick={submit} disabled={busy}
-            className="w-full flex items-center justify-center gap-2 bg-amber-400 hover:bg-amber-300 disabled:opacity-60 text-slate-900 font-semibold text-sm rounded-lg py-2.5 transition">
+            className="w-full flex items-center justify-center gap-2 bg-brand hover:bg-yellow-300 disabled:opacity-60 text-slate-900 font-semibold text-sm rounded-lg py-2.5 transition">
             {busy && <Loader2 size={14} className="animate-spin" />}
             {mode === 'signin' ? 'Sign in' : 'Create account'}
           </button>
@@ -93,11 +89,11 @@ export default function LoginPage() {
           <p className="text-slate-500 text-xs text-center">
             {mode === 'signin' ? (
               <>New here?{' '}
-                <button onClick={() => { setMode('signup'); setNotice(null) }} className="text-amber-400 hover:underline">Create an account</button>
+                <button onClick={() => { setMode('signup'); setNotice(null) }} className="text-brand hover:underline">Create an account</button>
               </>
             ) : (
               <>Already have an account?{' '}
-                <button onClick={() => { setMode('signin'); setNotice(null) }} className="text-amber-400 hover:underline">Sign in</button>
+                <button onClick={() => { setMode('signin'); setNotice(null) }} className="text-brand hover:underline">Sign in</button>
               </>
             )}
           </p>
