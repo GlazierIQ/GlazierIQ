@@ -402,7 +402,41 @@ export function DataProvider({ children }) {
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id])
+// ---- Realtime: the heartbeat. Live updates from other users ----
+  useEffect(() => {
+    if (!user) return
 
+    // Insert-or-update a row into a list without creating duplicates
+    const upsert = (mapper, setter) => (payload) => {
+      const row = mapper(payload.new)
+      setter(list => {
+        const i = list.findIndex(x => x.id === row.id)
+        if (i === -1) return [row, ...list]
+        const copy = [...list]; copy[i] = row
+        return copy
+      })
+    }
+    const remove = (setter) => (payload) =>
+      setter(list => list.filter(x => x.id !== payload.old.id))
+
+    const channel = supabase
+      .channel('glazieriq-live')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notes' }, upsert(fromNote, setNotes))
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'notes' }, upsert(fromNote, setNotes))
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'notes' }, remove(setNotes))
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
+        const row = fromMsg(payload.new)
+        setMessages(list => list.some(m => m.id === row.id) ? list : [...list, row])
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, upsert(fromNoti, setNotifications))
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'notifications' }, upsert(fromNoti, setNotifications))
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'qc_logs' }, upsert(fromQC, setQcLogs))
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'qc_logs' }, upsert(fromQC, setQcLogs))
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id])
   return (
     <DataContext.Provider value={{
       projects: PROJECTS, dataReady,

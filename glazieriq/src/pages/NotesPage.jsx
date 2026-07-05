@@ -7,7 +7,7 @@ import { useVoiceInput } from '../components/useVoiceInput'
 
 const SOURCE_META = {
   dictation: { label: 'Dictated', icon: Mic, cls: 'text-sky-400' },
-  agent:     { label: 'From AI agent', icon: Bot, cls: 'text-amber-400' },
+  agent:     { label: 'From AI agent', icon: Bot, cls: 'text-brand' },
   manual:    { label: 'Written', icon: Pencil, cls: 'text-slate-400' },
 }
 
@@ -53,29 +53,29 @@ export default function NotesPage() {
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-6">
       <div>
-        <h1 className="text-white text-xl font-semibold flex items-center gap-2"><StickyNote size={18} className="text-amber-400" /> Notes</h1>
+        <h1 className="text-white text-xl font-semibold flex items-center gap-2"><StickyNote size={18} className="text-brand" /> Notes</h1>
         <p className="text-slate-400 text-sm">Dictate or type — the AI agent saves notes here too</p>
       </div>
 
       {/* Composer */}
       <div className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-4 space-y-3">
         <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Title (optional)"
-          className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-amber-400" />
+          className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-brand" />
         <textarea value={draft + (interim ? ` ${interim}` : '')} onChange={e => setDraft(e.target.value)} rows={4} placeholder="Type a note, or tap the mic and speak…"
-          className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-amber-400 resize-none" />
+          className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-brand resize-none" />
         <div className="flex flex-wrap items-center gap-2">
           {supported && (
             <button onClick={toggle}
-              className={`flex items-center gap-1.5 px-3 py-2 text-xs rounded-lg border transition ${listening ? 'bg-red-500/15 border-red-500/40 text-red-300 animate-pulse' : 'border-slate-600 text-slate-300 hover:bg-slate-700'}`}>
+              className={`flex items-center gap-1.5 px-3 py-2 text-xs rounded-lg border transition ${listening ? 'bg-alert/15 border-alert/40 text-red-300 animate-pulse' : 'border-slate-600 text-slate-300 hover:bg-slate-700'}`}>
               <Mic size={13} /> {listening ? 'Listening… tap to stop' : 'Dictate'}
             </button>
           )}
           <label className="flex items-center gap-2 text-slate-400 text-xs cursor-pointer">
-            <input type="checkbox" checked={tidy} onChange={e => setTidy(e.target.checked)} className="accent-amber-400" />
-            <span className="flex items-center gap-1"><Sparkles size={11} className="text-amber-400" /> Clean up with AI</span>
+            <input type="checkbox" checked={tidy} onChange={e => setTidy(e.target.checked)} className="accent-brand" />
+            <span className="flex items-center gap-1"><Sparkles size={11} className="text-brand" /> Clean up with AI</span>
           </label>
           <button onClick={save} disabled={!draft.trim()}
-            className="ml-auto flex items-center gap-1.5 px-4 py-2 bg-amber-400 hover:bg-amber-300 disabled:opacity-40 text-slate-900 font-semibold text-xs rounded-lg transition">
+            className="ml-auto flex items-center gap-1.5 px-4 py-2 bg-brand hover:bg-yellow-300 disabled:opacity-40 text-slate-900 font-semibold text-xs rounded-lg transition">
             <Plus size={13} /> Save note
           </button>
         </div>
@@ -102,7 +102,7 @@ export default function NotesPage() {
                   </div>
                 </div>
                 <button onClick={() => deleteNote(n.id)} title="Delete note"
-                  className="p-1.5 text-slate-600 hover:text-red-400 transition opacity-0 group-hover:opacity-100">
+                  className="p-1.5 text-slate-500 hover:text-alert active:text-alert transition">
                   <Trash2 size={14} />
                 </button>
               </div>
