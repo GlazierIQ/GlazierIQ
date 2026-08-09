@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../supabaseClient'
 import { useAuth } from '../contexts/AuthContext'
 import { PROJECTS } from '../contexts/DataContext'
+import { QRCodeCanvas } from 'qrcode.react'
 
 const UNIT_FAMILIES = [
   'Curtain Wall', 'Storefront', 'Window Wall', 'SSG',
@@ -131,6 +132,13 @@ export default function PanelPassportPage() {
             {selected.width_in && selected.height_in &&
               <> &middot; {selected.width_in}&quot; &times; {selected.height_in}&quot;</>}
           </div>
+        </div>
+        <div className="bg-white rounded-xl p-4 mb-4 flex flex-col items-center">
+          <QRCodeCanvas
+            value={`${window.location.origin}/packet/${selected.id}`}
+            size={160}
+          />
+          <div className="text-graphite text-xs font-mono mt-2">{selected.passport_number}</div>
         </div>
 
         {/* Station timeline */}

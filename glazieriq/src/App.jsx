@@ -18,6 +18,7 @@ import PanelPassportPage from './pages/PanelPassportPage'
 import AIAgent from './components/AIAgent'
 import LoginPage from './pages/LoginPage'
 import { Loader2 } from 'lucide-react'
+import PacketPage from './pages/PacketPage'
 import {
   OrdersPage, MachineQueuePage,
   TimePage, LogisticsPage, CloseoutPage
@@ -65,6 +66,7 @@ function Layout() {
           <Route path="/notes"     element={<NotesPage />} />
           <Route path="/passports" element={<PanelPassportPage />} />
           <Route path="/admin"     element={<AdminPage />} />
+          <Route path="/packet/:passportId" element={<PacketPage />} />
         </Routes>
       </main>
       <AIAgent />
