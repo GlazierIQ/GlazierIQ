@@ -14,6 +14,7 @@ import AdminPage from './pages/AdminPage'
 import SafetyPage from './pages/SafetyPage'
 import EstimatorPage from './pages/EstimatorPage'
 import NotesPage from './pages/NotesPage'
+import PanelPassportPage from './pages/PanelPassportPage'
 import AIAgent from './components/AIAgent'
 import LoginPage from './pages/LoginPage'
 import { Loader2 } from 'lucide-react'
@@ -62,6 +63,7 @@ function Layout() {
           <Route path="/closeout"  element={<CloseoutPage />} />
           <Route path="/logistics" element={<LogisticsPage />} />
           <Route path="/notes"     element={<NotesPage />} />
+          <Route path="/passports" element={<PanelPassportPage />} />
           <Route path="/admin"     element={<AdminPage />} />
         </Routes>
       </main>

@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext'
 import {
   LayoutDashboard, ClipboardList, Factory, ScanLine, FileText,
   ShieldCheck, Users, CloudSun, Clock, MessageSquare, FolderKanban,
-  Settings, Truck, ChevronRight, ShieldAlert, TrendingUp, StickyNote, LogOut
+  Settings, Truck, ChevronRight, ShieldAlert, TrendingUp, StickyNote, LogOut , BadgeCheck
 } from 'lucide-react'
 
 const NAV = [
@@ -12,6 +12,7 @@ const NAV = [
   { to: '/orders',      label: 'Orders',             icon: ClipboardList },
   { to: '/queue',       label: 'Machine Queue',      icon: Factory },
   { to: '/qc',          label: 'Panel Scan / QC',    icon: ScanLine },
+  { to: '/passports',   label: 'Panel Passports',    icon: BadgeCheck },
   { to: '/drawings',    label: 'Drawing Assistant',  icon: FileText },
   { to: '/safety',      label: 'Safety',             icon: ShieldCheck },
   { to: '/crew',        label: 'Crew Management',    icon: Users },
